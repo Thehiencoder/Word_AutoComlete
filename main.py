@@ -148,9 +148,15 @@ def suggest_words(
     final_scores = []
 
     for i, lemma in enumerate(lemmas):
-        best_word = max(lemma_groups[lemma], key=lambda x: x[1])[0]
+        #Combine LDA + freq to improve the suggestion
+        best_word, freq = max(lemma_groups[lemma], key=lambda x: x[1])
+
+        freq_score = np.log(freq + 1)
+
+        final_score = 0.9 * scores[i] + 0.2 * freq_score
+
         final_words.append(best_word)
-        final_scores.append(scores[i])
+        final_scores.append(final_score)
 
     final_scores = np.array(final_scores)
 
