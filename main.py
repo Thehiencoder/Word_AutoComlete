@@ -140,23 +140,36 @@ def suggest_words(
     context_top = context_topic_dist[top_idx]         # (k,)
     word_top = word_topic_matrix[top_idx, :]          # (k, N)
 
-    # ===== SCORE =====
-    scores = context_top @ word_top                   # (N,)
+    # ===== SCORE LDA =====
+    score_lda = context_top @ word_top                # (N,)
+
+    # ===== SCORE TRIE (FREQ) =====
+    score_trie = np.array([lemma_freq[l] for l in lemmas])
+
+    # ===== NORMALIZE =====
+    def normalize(x):
+        return (x - x.min()) / (x.max() - x.min() + 1e-9)
+
+    score_lda_norm = normalize(score_lda)
+    score_trie_norm = normalize(score_trie)
+
+    # ===== COMBINE =====
+    prefix_len = len(prefix)
+
+    alpha = 0.9 if prefix_len <= 2 else (0.7 if prefix_len <= 4 else 0.5)
+    final_scores = alpha * score_lda_norm + (1 - alpha) * score_trie_norm
 
     # ===== SELECT BEST WORD PER LEMMA =====
     final_words = []
-    final_scores = []
 
-    for i, lemma in enumerate(lemmas):
+    for lemma in lemmas:
         best_word = max(lemma_groups[lemma], key=lambda x: x[1])[0]
         final_words.append(best_word)
-        final_scores.append(scores[i])
 
     final_scores = np.array(final_scores)
 
     # ===== SORT =====
     idx_sorted = np.argsort(final_scores)[::-1][:num_suggestions]
-
     result = [(final_words[i], final_scores[i]) for i in idx_sorted]
 
     if verbose:
