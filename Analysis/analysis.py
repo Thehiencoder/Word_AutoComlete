@@ -1,6 +1,7 @@
 import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+import random
 
 import spacy
 import random
@@ -25,6 +26,7 @@ def evaluate_hit_at_k_trie_only(
     k=10,
     max_docs=50,
     max_words_per_doc=20,
+    check_matrix=None,
     max_prefix_len=6,
     verbose=False,
 ):
@@ -54,7 +56,7 @@ def evaluate_hit_at_k_trie_only(
         tokens = [t.text for t in doc if t.is_alpha and not t.is_punct and not t.is_space]
 
         for wi, word in enumerate(tokens):
-            if max_words_per_doc is not None and not wi in list(range(0, max_words_per_doc * 20, 20)):
+            if max_words_per_doc is not None and not wi in check_matrix[doc_i]:
                 continue
 
             if not word:
@@ -106,6 +108,7 @@ def evaluate_hit_at_k_with_lda(
     k=10,
     max_docs=50,
     max_words_per_doc=20,
+    check_matrix=None,
     max_prefix_len=6,
     verbose=False,
 ):
@@ -138,7 +141,7 @@ def evaluate_hit_at_k_with_lda(
         tokens = [t.text for t in doc if t.is_alpha and not t.is_punct and not t.is_space]
 
         for wi, word in enumerate(tokens):
-            if max_words_per_doc is not None and not wi in list(range(0, max_words_per_doc * 20, 20)):
+            if max_words_per_doc is not None and not wi in check_matrix[doc_i]:
                 continue
 
             if not word:
@@ -158,7 +161,7 @@ def evaluate_hit_at_k_with_lda(
                     nlp,
                     user_input,
                     K=k,
-                    alpha=0.9,
+                    alpha=[None, 0.25, 1.75, 2.5, 2.0, 1.75, 0.0],
                 )
 
                 suggested_words = [w for w, _ in suggestions]
@@ -250,6 +253,15 @@ def plot_hit_rate_by_prefix_length(
 if __name__ == "__main__":
     articles = load_test_data()
 
+    max_words_per_doc = 10
+    check_matrix = []
+    for doc_i, doc in enumerate(articles):
+        doc = nlp(doc.lower())
+        tokens = [t.text for t in doc if t.is_alpha and not t.is_punct and not t.is_space]
+        check_list = random.sample(range(0, len(tokens)), min(len(tokens), max_words_per_doc))
+        check_matrix.append(check_list)
+        print(f"Doc {doc_i+1}: {len(tokens)} tokens, checking {len(check_list)} tokens")
+
     print("="*70)
     print("EVALUATION: Trie Only vs Trie + LDA")
     print("="*70)
@@ -259,8 +271,9 @@ if __name__ == "__main__":
     results_trie_only = evaluate_hit_at_k_trie_only(
         articles,
         k=10,
-        max_docs=50,
-        max_words_per_doc=20,
+        max_docs=None,
+        max_words_per_doc=max_words_per_doc,
+        check_matrix=check_matrix,
         max_prefix_len=6,
         verbose=True,
     )
@@ -270,8 +283,9 @@ if __name__ == "__main__":
     results_with_lda = evaluate_hit_at_k_with_lda(
         articles,
         k=10,
-        max_docs=50,
-        max_words_per_doc=20,
+        max_docs=None,
+        max_words_per_doc=max_words_per_doc,
+        check_matrix=check_matrix,
         max_prefix_len=6,
         verbose=True,
     )

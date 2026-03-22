@@ -80,7 +80,7 @@ class Trie_with_LDA:
                 cur.topic_dist = topic_word_matrix[:, word_id]
 
     def infer_topic_dist(self, lda_model, word_to_id, topic_word_matrix, context, nlp):
-        context_tokens = [t for word in context.split() if (t := tokenize(word, nlp))]
+        context_tokens = [t for word in context.split() if (t := tokenize(word, nlp))][-20:]
 
         if not context_tokens:
             self.topic_context_dist = np.zeros(lda_model.k)
@@ -97,10 +97,10 @@ class Trie_with_LDA:
             else:
                 self.topic_context_dist = np.zeros(lda_model.k)
 
-    def _dfs(self, node : Trie_with_LDA_Node, cur_word, K, heap, alpha, max_freq):
+    def _dfs(self, node : Trie_with_LDA_Node, cur_word, K, heap, alpha, max_freq, len_prefix):
         if node.is_end:
             # Normalize freq to [0, 1]
-            norm_freq = node.freq / max_freq if max_freq > 0 else 0
+            norm_freq = np.log(1 + node.freq) / np.log(1 + max_freq)
             
             # Normalize dot product (cosine similarity)
             node_norm = np.linalg.norm(node.topic_dist)
@@ -111,14 +111,14 @@ class Trie_with_LDA:
                 norm_similarity = 0
             
             # Combine freq and similarity with alpha (Heuristic)
-            score = (round(norm_freq, 1), norm_similarity)
+            score = norm_freq * (1 + alpha[len_prefix] * norm_similarity ** 2)
             if len(heap) < K:
                 heapq.heappush(heap, (score, cur_word))
             elif score > heap[0][0]:
                 heapq.heapreplace(heap, (score, cur_word))
 
         for c, nxt in node.child.items():
-            self._dfs(nxt, cur_word + c, K, heap, alpha, max_freq)
+            self._dfs(nxt, cur_word + c, K, heap, alpha, max_freq, len_prefix)
 
     def topK(self, prefix, K, alpha):
         cur = self.root
@@ -137,7 +137,7 @@ class Trie_with_LDA:
         max_freq = find_max_freq(cur)
         
         heap = []
-        self._dfs(cur, prefix, K, heap, alpha, max_freq)
+        self._dfs(cur, prefix, K, heap, alpha, max_freq, len_prefix=len(prefix))
 
         return sorted(
             [(word, score) for score, word in heap],
@@ -190,6 +190,6 @@ if __name__ == "__main__":
     print("Models loaded. Ready for suggestions.")
     K = 10
     user_input = "machine learning is very po"
-    alpha = 0.8
+    alpha = [None, 0.25, 1.75, 2.5, 2.0, 1.75, 0.0]
     topK = suggest_words(trie_with_lda, lda_model, word_to_id, topic_word_matrix, nlp, user_input, K, alpha)
     [print(word, score) for word, score in topK]
