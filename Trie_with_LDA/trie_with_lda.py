@@ -13,14 +13,17 @@ def load_models():
         for i in range(lda_model.num_vocabs)
     }
 
-    nlp = spacy.load('en_core_web_sm', disable=['parser', 'ner'])
-
     topic_word_matrix = np.array([
         lda_model.get_topic_word_dist(k)
         for k in range(lda_model.k)
     ])
 
-    return lda_model, word_to_id, topic_word_matrix, nlp
+    nlp_model = None
+    if not skip_nlp:
+        nlp_model = spacy.load('en_core_web_sm', disable=['parser', 'ner'])
+
+    return lda_model, word_to_id, topic_word_matrix, nlp_model
+
 
 @lru_cache(maxsize=10000)
 def tokenize(text, nlp_ref): #Using cache to avoid calling Spacy repeatedly.
@@ -67,7 +70,7 @@ class Trie_with_LDA:
             clean_word = tokenize(word, nlp)
             if clean_word in word_to_id:
                 word_id = word_to_id[clean_word]
-                cur.topic_dist = topic_word_matrix[:, word_id]
+                cur.topic_dist = topic_word_matrix[:, word_id].astype(np.float32)
 
     def infer_topic_dist(self, lda_model, word_to_id, topic_word_matrix, context, nlp):
         words = context.split()
