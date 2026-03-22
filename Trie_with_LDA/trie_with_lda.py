@@ -5,7 +5,7 @@ import tomotopy as tp
 import numpy as np
 from functools import lru_cache
 
-def load_models():
+def load_models(skip_nlp=True):
     lda_model = tp.LDAModel.load("LDA_CGS/lda_cgs.bin")
 
     word_to_id = {
@@ -16,7 +16,7 @@ def load_models():
     topic_word_matrix = np.array([
         lda_model.get_topic_word_dist(k)
         for k in range(lda_model.k)
-    ])
+    ], dtype=np.float32)
 
     nlp_model = None
     if not skip_nlp:
@@ -70,7 +70,7 @@ class Trie_with_LDA:
             clean_word = tokenize(word, nlp)
             if clean_word in word_to_id:
                 word_id = word_to_id[clean_word]
-                cur.topic_dist = topic_word_matrix[:, word_id].astype(np.float32)
+                cur.topic_dist = topic_word_matrix[:, word_id]
 
     def infer_topic_dist(self, lda_model, word_to_id, topic_word_matrix, context, nlp):
         words = context.split()
@@ -140,7 +140,7 @@ class Trie_with_LDA:
 def build_trie_with_lda(word_to_id, topic_word_matrix, nlp):
     trie = Trie_with_LDA()
 
-    with open("Dataset/training_data_for_Trie.pkl", 'rb') as f:
+    with open("Trie/training_data_for_Trie.pkl", 'rb') as f:
         tokenized_articles = pickle.load(f)
 
     for i, doc in enumerate(tokenized_articles):
@@ -163,13 +163,13 @@ def suggest_words(trie_with_lda, lda_model, word_to_id, topic_word_matrix, nlp, 
 
 
 if __name__ == "__main__":
-    lda_model, word_to_id, topic_word_matrix, nlp = load_models()
-    # trie_with_lda = build_trie_with_lda(word_to_id, topic_word_matrix, nlp)
+    lda_model, word_to_id, topic_word_matrix, nlp = load_models(skip_nlp=False)
+    trie_with_lda = build_trie_with_lda(word_to_id, topic_word_matrix, nlp)
 
     # Save
-    # filename = "Trie_with_LDA/Trie_with_LDA.pkl"
-    # with open(filename, 'wb') as f:
-    #     pickle.dump(trie_with_lda, f)
+    filename = "Trie_with_LDA/Trie_with_LDA.pkl"
+    with open(filename, 'wb') as f:
+        pickle.dump(trie_with_lda, f)
 
     # Load
     with open("Trie_with_LDA/Trie_with_LDA.pkl", 'rb') as f:

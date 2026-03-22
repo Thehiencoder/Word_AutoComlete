@@ -58,7 +58,7 @@ class Trie:
 def build_trie():
     trie = Trie()
 
-    with open("Dataset/training_data_for_Trie.pkl", 'rb') as f:
+    with open("Trie/training_data_for_Trie.pkl", 'rb') as f:
         tokenized_articles = pickle.load(f)
 
     words = [word for doc in tokenized_articles for word in doc]
@@ -73,13 +73,13 @@ if __name__ == "__main__":
     # Save
     trie = build_trie()
 
-    # filename = "Trie/Trie.pkl"
-    # with open(filename, 'wb') as f:
-    #     pickle.dump(trie, f)
+    filename = "Trie/Trie.pkl"
+    with open(filename, 'wb') as f:
+        pickle.dump(trie, f)
 
     # Load
-    # with open("Trie/Trie.pkl", 'rb') as f:
-    #     trie = pickle.load(f)
+    with open("Trie/Trie.pkl", 'rb') as f:
+        trie = pickle.load(f)
 
     topK = trie.topK("app", 10)
     [print(i) for i in topK]
