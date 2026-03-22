@@ -3,7 +3,7 @@ import pickle
 import spacy
 import tomotopy as tp
 import numpy as np
-
+from functools import lru_cache
 
 def load_models():
     lda_model = tp.LDAModel.load("LDA_CGS/lda_cgs.bin")
@@ -22,31 +22,13 @@ def load_models():
 
     return lda_model, word_to_id, topic_word_matrix, nlp
 
-_tokenize_cache = {}
-
-def tokenize(text, nlp):
-    key = text.strip().lower()
-    if not key:
-        return ""
-
-    if key in _tokenize_cache:
-        return _tokenize_cache[key]
-
-    doc = nlp(key)
-    lemmatized_token = ""
+@lru_cache(maxsize=10000)
+def tokenize(text, nlp_ref): #Using cache to avoid calling Spacy repeatedly.
+    doc = nlp_ref(text.lower().strip())
     for t in doc:
-        if (
-            t.is_alpha and
-            not t.is_punct and
-            not t.is_space and
-            not t.is_stop and
-            t.pos_ in ['NOUN', 'VERB', 'ADJ']
-        ):
-            lemmatized_token = t.lemma_
-            break
-
-    _tokenize_cache[key] = lemmatized_token
-    return lemmatized_token
+        if t.is_alpha and not t.is_stop and t.pos_ in ['NOUN', 'VERB', 'ADJ']:
+            return t.lemma_
+    return ""
 
 
 class Trie_with_LDA_Node:
@@ -54,97 +36,103 @@ class Trie_with_LDA_Node:
         self.child = {}
         self.is_end = False
         self.freq = 0
-        self.topic_dist = np.zeros(170)
+        self.max_subtree_freq = 0 #topK doesn't have to traverse the tree to find max
+        self.topic_dist = None
 
 
 class Trie_with_LDA:
-    def __init__(self):
+    def __init__(self, k_topics = 170):
         self.root = Trie_with_LDA_Node()
-        self.topic_context_dist = None
+        self.topic_context_dist = np.zeros(k_topics)
 
     def insert(self, word, word_to_id, topic_word_matrix, nlp):
         cur = self.root
+        nodes_on_path = [cur]
         for c in word:
             if c not in cur.child:
                 cur.child[c] = Trie_with_LDA_Node()
             cur = cur.child[c]
+            nodes_on_path.append(cur)
 
         cur.is_end = True
         cur.freq += 1
         
-        if cur.topic_dist.sum() == 0:
-            word = tokenize(word, nlp)
+        #Update max_subtree_freq back to parent nodes
+        for node in nodes_on_path:
+            if cur.freq > node.max_subtree_freq:
+                node.max_subtree_freq = cur.freq
 
-            if  word in word_to_id:
-                word_id = word_to_id[word]
+        #Assign LDA vector for last node
+        if cur.topic_dist is None:
+            clean_word = tokenize(word, nlp)
+            if clean_word in word_to_id:
+                word_id = word_to_id[clean_word]
                 cur.topic_dist = topic_word_matrix[:, word_id]
 
     def infer_topic_dist(self, lda_model, word_to_id, topic_word_matrix, context, nlp):
-        context_tokens = [t for word in context.split() if (t := tokenize(word, nlp))][-20:]
+        words = context.split()
+        context_tokens = []
+        for w in words[-20:]:
+            t = tokenize(w, nlp)
+            if t: context_tokens.append(t)
 
         if not context_tokens:
             self.topic_context_dist = np.zeros(lda_model.k)
+            return 
+        phi_vectors = [topic_word_matrix[:, word_id] 
+                       for t in context_tokens 
+                       if (word_id := word_to_id.get(t)) is not None]
+        
+        if phi_vectors:
+            topic_sum = np.sum(phi_vectors, axis=0)
+            self.topic_context_dist = topic_sum / (np.sum(topic_sum) + 1e-9)
         else:
-            phi_vectors = []
-            for token in context_tokens:
-                if token in word_to_id:
-                    word_id = word_to_id[token]
-                    phi_vectors.append(topic_word_matrix[:, word_id])
-            
-            if phi_vectors:
-                topic_sum = np.sum(phi_vectors, axis=0)
-                self.topic_context_dist = topic_sum / np.sum(topic_sum)
-            else:
-                self.topic_context_dist = np.zeros(lda_model.k)
+            self.topic_context_dist = np.zeros(lda_model.k)
 
-    def _dfs(self, node : Trie_with_LDA_Node, cur_word, K, heap, alpha, max_freq, len_prefix):
+    def _dfs(self, node, cur_word, K, heap, alpha_val, max_freq):
         if node.is_end:
-            # Normalize freq to [0, 1]
-            norm_freq = np.log(1 + node.freq) / np.log(1 + max_freq)
+            #Normalize freq
+            norm_freq = np.log(1 + node.freq) / np.log(1 + max_freq) if max_freq > 0 else 0
+
+            #Calculate context similarity
+            norm_similarity = 0
+            if node.topic_dist is not None:
+                node_norm = np.linalg.norm(node.topic_dist)
+                context_norm = np.linalg.norm(self.topic_context_dist)
+                if node_norm > 0 and context_norm > 0:
+                    norm_similarity = (node.topic_dist @ self.topic_context_dist) / (node_norm * context_norm)
             
-            # Normalize dot product (cosine similarity)
-            node_norm = np.linalg.norm(node.topic_dist)
-            context_norm = np.linalg.norm(self.topic_context_dist)
-            if node_norm > 0 and context_norm > 0:
-                norm_similarity = (node.topic_dist @ self.topic_context_dist) / (node_norm * context_norm)
-            else:
-                norm_similarity = 0
+            #Calculate final score
+            score = norm_freq * (1 + alpha_val * (norm_similarity ** 2))
             
-            # Combine freq and similarity with alpha (Heuristic)
-            score = norm_freq * (1 + alpha[len_prefix] * norm_similarity ** 2)
             if len(heap) < K:
                 heapq.heappush(heap, (score, cur_word))
             elif score > heap[0][0]:
                 heapq.heapreplace(heap, (score, cur_word))
 
         for c, nxt in node.child.items():
-            self._dfs(nxt, cur_word + c, K, heap, alpha, max_freq, len_prefix)
+            self._dfs(nxt, cur_word + c, K, heap, alpha_val, max_freq)
 
-    def topK(self, prefix, K, alpha):
+    def topK(self, prefix, K, alpha_list):
         cur = self.root
         for c in prefix:
             if c not in cur.child:
                 return []
             cur = cur.child[c]
 
-        # Find max frequency in subtree for normalization
-        def find_max_freq(node):
-            max_f = node.freq if node.is_end else 0
-            for child in node.child.values():
-                max_f = max(max_f, find_max_freq(child))
-            return max_f
-        
-        max_freq = find_max_freq(cur)
+        #Take alpha based on prefix length
+        alpha_idx = min(len(prefix), len(alpha_list) - 1)
+        alpha_val = alpha_list[alpha_idx] if alpha_list[alpha_idx] is not None else 0
         
         heap = []
-        self._dfs(cur, prefix, K, heap, alpha, max_freq, len_prefix=len(prefix))
+        #Use max_subtree_freq
+        self._dfs(cur, prefix, K, heap, alpha_val, cur.max_subtree_freq)
 
         return sorted(
             [(word, score) for score, word in heap],
             key=lambda x: x[1],
             reverse=True
         )
-
 
 def build_trie_with_lda(word_to_id, topic_word_matrix, nlp):
     trie = Trie_with_LDA()
@@ -160,18 +148,15 @@ def build_trie_with_lda(word_to_id, topic_word_matrix, nlp):
     return trie
 
 
-def suggest_words(trie_with_lda : Trie_with_LDA, lda_model, word_to_id, topic_word_matrix, nlp, user_input, K, alpha):
+def suggest_words(trie_with_lda, lda_model, word_to_id, topic_word_matrix, nlp, user_input, K, alpha):
     words_input = user_input.split()
-    if not words_input:
-        return []
+    if not words_input: return []
 
     prefix = words_input[-1]
-    context = " ".join(words_input[:-1]) if len(words_input) > 1 else ""
+    context = " ".join(words_input[:-1])
 
     trie_with_lda.infer_topic_dist(lda_model, word_to_id, topic_word_matrix, context, nlp)
-    topK = trie_with_lda.topK(prefix, K, alpha)
-
-    return topK
+    return trie_with_lda.topK(prefix, K, alpha)
 
 
 if __name__ == "__main__":
