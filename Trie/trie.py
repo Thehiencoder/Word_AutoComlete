@@ -15,6 +15,7 @@ class Trie:
         self.root = TrieNode()
 
     def insert(self, word):
+        word=word.lower()
         cur = self.root
         nodes = [cur]
         for c in word:
@@ -26,7 +27,8 @@ class Trie:
         cur.is_end = True
         cur.freq += 1
         for n in nodes: 
-            n.max_subtree_freq = max(n.max_subtree_freq, cur.freq)
+            if cur.freq > n.max_subtree_freq:
+                n.max_subtree_freq = cur.freq
 
     def _dfs(self, node, cur_word, K, heap):
         if node.is_end:
@@ -39,6 +41,7 @@ class Trie:
             self._dfs(nxt, cur_word + c, K, heap)
 
     def topK(self, prefix, K):
+        prefix=prefix.lower()
         cur = self.root
         for c in prefix:
             if c not in cur.child:

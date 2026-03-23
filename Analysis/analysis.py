@@ -5,12 +5,13 @@ import spacy
 import pickle
 import pandas as pd
 
-from Trie.trie import Trie 
-from Trie_with_LDA.trie_with_lda import Trie_with_LDA, load_models, suggest_words
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from Trie.trie import Trie, TrieNode 
+from Trie_with_LDA.trie_with_lda import Trie_with_LDA, Trie_with_LDA_Node, load_models, suggest_words
 
 #Load nlp once only
 nlp = spacy.load('en_core_web_sm', disable=['parser', 'ner', 'lemmatizer', 'attribute_ruler'])
-ALPHA_CONFIG = [0, 0.25, 1.75, 2.5, 2.0, 1.75, 1.75]
+ALPHA_CONFIG = [0, 1.0, 5.0, 10.0, 8.0, 5.0, 2.0]
 
 def load_test_data():
     path = "Dataset/raw_test_set.txt"
@@ -19,10 +20,10 @@ def load_test_data():
         return [a.strip() for a in f.read().split('@delimiter') if a.strip()]
 
 def pre_tokenize_articles(articles):
-    return [[t.text for t in doc if t.is_alpha] 
-            for doc in nlp.pipe([a.lower() for a in articles], batch_size=50)]
+    return [[t.text.lower() for t in doc if t.is_alpha and not t.is_stop] 
+            for doc in nlp.pipe(articles, batch_size=50)]
 
-def evaluate_hit_at_k(method_name, tokenized_articles, trie_obj, lda_params=None, k=10, check_matrix=None):
+def evaluate_hit_at_k(method_name, tokenized_articles, trie_obj, lda_params=None, k=3, check_matrix=None):
     hit_count = 0
     total_queries = 0
     max_prefix_len = 6
@@ -49,7 +50,10 @@ def evaluate_hit_at_k(method_name, tokenized_articles, trie_obj, lda_params=None
                     suggested_words = [w for w, _ in suggestions]
                 else:
                     suggested_words = [w for w, _ in trie_obj.topK(prefix, k)]
-
+                 
+                print(f"--- Testing Method: {method_name} ---")
+                print(f"Target: {word} | Prefix: {prefix}")
+                print(f"Top {k} Suggestions: {suggested_words}")
                 if word in suggested_words[:k]:
                     hit_count += 1
                     hit_counts_by_prefix[prefix_len] += 1
@@ -63,14 +67,20 @@ def evaluate_hit_at_k(method_name, tokenized_articles, trie_obj, lda_params=None
     }
 
 if __name__ == "__main__":
-    articles = load_test_data()
+    articles = load_test_data()[:100]
     tokenized_articles = pre_tokenize_articles(articles)
     
     #Check matrix dùng chung để đảm bảo tính công bằng (fair comparison)
     check_matrix = [random.sample(range(len(t)), min(len(t), 10)) for t in tokenized_articles]
-
+    print(f"Số lượng bài báo load được: {len(tokenized_articles)}")
+    print(f"Số lượng vị trí test trong bài 1: {len(check_matrix[0]) if check_matrix else 0}")
     lda_info = load_models()
     
+    sys.modules['__main__'].TrieNode = TrieNode
+    sys.modules['__main__'].Trie = Trie
+    sys.modules['__main__'].Trie_with_LDA_Node = Trie_with_LDA_Node
+    sys.modules['__main__'].Trie_with_LDA = Trie_with_LDA
+
     with open("Trie/Trie.pkl", 'rb') as f: trie_only = pickle.load(f)
     with open("Trie_with_LDA/Trie_with_LDA.pkl", 'rb') as f: trie_lda = pickle.load(f)
 

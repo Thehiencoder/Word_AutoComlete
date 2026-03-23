@@ -25,7 +25,7 @@ def load_models(skip_nlp=True):
     return lda_model, word_to_id, topic_word_matrix, nlp_model
 
 
-@lru_cache(maxsize=10000)
+@lru_cache(maxsize=20000)
 def tokenize(text, nlp_ref): #Using cache to avoid calling Spacy repeatedly.
     doc = nlp_ref(text.lower().strip())
     for t in doc:
@@ -51,7 +51,8 @@ class Trie_with_LDA:
     def insert(self, word, word_to_id, topic_word_matrix, nlp):
         cur = self.root
         nodes_on_path = [cur]
-        for c in word:
+        word_lower = word.lower()
+        for c in word_lower:
             if c not in cur.child:
                 cur.child[c] = Trie_with_LDA_Node()
             cur = cur.child[c]
@@ -106,7 +107,8 @@ class Trie_with_LDA:
                     norm_similarity = (node.topic_dist @ self.topic_context_dist) / (node_norm * context_norm)
             
             #Calculate final score
-            score = norm_freq * (1 + alpha_val * (norm_similarity ** 2))
+            #score = norm_freq * (1 + alpha_val * (norm_similarity ** 2))
+            score = norm_freq + alpha_val * norm_similarity
             
             if len(heap) < K:
                 heapq.heappush(heap, (score, cur_word))
@@ -155,7 +157,7 @@ def suggest_words(trie_with_lda, lda_model, word_to_id, topic_word_matrix, nlp, 
     words_input = user_input.split()
     if not words_input: return []
 
-    prefix = words_input[-1]
+    prefix = words_input[-1].lower()
     context = " ".join(words_input[:-1])
 
     trie_with_lda.infer_topic_dist(lda_model, word_to_id, topic_word_matrix, context, nlp)
