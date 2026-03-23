@@ -23,7 +23,7 @@ def pre_tokenize_articles(articles):
     return [[t.text.lower() for t in doc if t.is_alpha and not t.is_stop] 
             for doc in nlp.pipe(articles, batch_size=50)]
 
-def evaluate_hit_at_k(method_name, tokenized_articles, trie_obj, lda_params=None, k=3, check_matrix=None):
+def evaluate_hit_at_k(method_name, tokenized_articles, trie_obj, lda_params=None, k=10, check_matrix=None):
     hit_count = 0
     total_queries = 0
     max_prefix_len = 6
