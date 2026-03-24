@@ -10,17 +10,17 @@ from Trie.trie import Trie, TrieNode
 from Trie_with_LDA.trie_with_lda import Trie_with_LDA, Trie_with_LDA_Node, load_models, suggest_words
 
 #Load nlp once only
-nlp = spacy.load('en_core_web_sm', disable=['parser', 'ner', 'attribute_ruler'])  # Enable lemmatizer
-ALPHA_CONFIG = [0, 0.1, 0.5, 1.0, 1.5, 2.0, 2.5]
+nlp = spacy.load('en_core_web_sm', disable=['parser', 'ner', 'attribute_ruler'])
+ALPHA_CONFIG = [0, 0.1, 0.5, 1.0, 4.5, 6.0, 7.5]
+
 def load_test_data():
-    path = "Dataset/raw_test_set.txt"
+    path = "Dataset/test_data_for_LDA.pkl"
     if not os.path.exists(path): return []
-    with open(path, 'r', encoding='utf8') as f:
-        return [a.strip() for a in f.read().split('@delimiter') if a.strip()]
+    with open(path, 'rb') as f: 
+        return pickle.load(f)
 
 def pre_tokenize_articles(articles):
-    return [[t.text.lower() for t in doc if t.is_alpha and not t.is_stop] 
-            for doc in nlp.pipe(articles, batch_size=50)]
+    return articles
 
 def evaluate_hit_at_k(method_name, tokenized_articles, trie_obj, lda_params=None, k=10, check_matrix=None):
     hit_count = 0
@@ -33,6 +33,7 @@ def evaluate_hit_at_k(method_name, tokenized_articles, trie_obj, lda_params=None
     lda_m, w2id, tw_matrix = lda_params[:3] if lda_params else (None, None, None)
 
     for doc_i, tokens in enumerate(tokenized_articles):
+        if not tokens: continue
         for wi in check_matrix[doc_i]:
             if wi >= len(tokens): continue
             word = tokens[wi]

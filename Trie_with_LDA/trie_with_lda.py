@@ -5,7 +5,7 @@ import tomotopy as tp
 import numpy as np
 from functools import lru_cache
 
-def load_models(skip_nlp=True):
+def load_models():
     lda_model = tp.LDAModel.load("LDA_CGS/lda_cgs.bin")
 
     word_to_id = {
@@ -18,9 +18,9 @@ def load_models(skip_nlp=True):
         for k in range(lda_model.k)
     ], dtype=np.float32)
 
-    nlp_model = None
-    if not skip_nlp:
-        nlp_model = spacy.load('en_core_web_sm', disable=['parser', 'ner'])
+    #nlp_model = None
+    #if not skip_nlp:
+    nlp_model = spacy.load('en_core_web_sm', disable=['ner'])
 
     return lda_model, word_to_id, topic_word_matrix, nlp_model
 
@@ -29,8 +29,8 @@ def load_models(skip_nlp=True):
 def tokenize(text, nlp_ref): #Using cache to avoid calling Spacy repeatedly.
     doc = nlp_ref(text.lower().strip())
     for t in doc:
-        if t.is_alpha and not t.is_stop:
-            return t.lemma_.lower()
+        if t.is_alpha and not t.is_punct and not t.is_space and not t.is_stop:
+            return t.lemma_
     return ""
 
 
@@ -68,9 +68,9 @@ class Trie_with_LDA:
 
         #Assign LDA vector for last node
         if cur.topic_dist is None:
-            clean_word = tokenize(word, nlp)
-            if clean_word in word_to_id:
-                word_id = word_to_id[clean_word]
+            #clean_word = tokenize(word, nlp)
+            if word_lower in word_to_id:
+                word_id = word_to_id[word_lower]
                 cur.topic_dist = topic_word_matrix[:, word_id]
 
     def infer_topic_dist(self, lda_model, word_to_id, topic_word_matrix, context, nlp):
@@ -107,8 +107,8 @@ class Trie_with_LDA:
                     norm_similarity = (node.topic_dist @ self.topic_context_dist) / (node_norm * context_norm)
             
             #Calculate final score
-            #score = norm_freq * (1 + alpha_val * (norm_similarity ** 2))
-            score = norm_freq + alpha_val * norm_similarity
+            score = norm_freq * (1 + alpha_val * (norm_similarity ** 2))
+            #score = norm_freq + alpha_val * norm_similarity
             
             if len(heap) < K:
                 heapq.heappush(heap, (score, cur_word))
@@ -142,7 +142,7 @@ class Trie_with_LDA:
 def build_trie_with_lda(word_to_id, topic_word_matrix, nlp):
     trie = Trie_with_LDA()
 
-    with open("Trie/training_data_for_Trie.pkl", 'rb') as f:
+    with open("Dataset/training_data_for_Trie.pkl", 'rb') as f:
         tokenized_articles = pickle.load(f)
 
     for i, doc in enumerate(tokenized_articles):
@@ -165,7 +165,7 @@ def suggest_words(trie_with_lda, lda_model, word_to_id, topic_word_matrix, nlp, 
 
 
 if __name__ == "__main__":
-    lda_model, word_to_id, topic_word_matrix, nlp = load_models(skip_nlp=False)
+    lda_model, word_to_id, topic_word_matrix, nlp = load_models()
     trie_with_lda = build_trie_with_lda(word_to_id, topic_word_matrix, nlp)
 
     # Save
