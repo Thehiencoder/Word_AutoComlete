@@ -20,7 +20,7 @@ def load_models():
 
     #nlp_model = None
     #if not skip_nlp:
-    nlp_model = spacy.load('en_core_web_sm', disable=['ner'])
+    nlp_model = spacy.load('en_core_web_sm', disable=['parser','ner'])
 
     return lda_model, word_to_id, topic_word_matrix, nlp_model
 
