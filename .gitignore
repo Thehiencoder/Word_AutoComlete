@@ -9,7 +9,10 @@ __pycache__/
 # Data / model files
 *.pkl
 *.bin
+<<<<<<< HEAD
 raw_test_set.txt
+=======
+>>>>>>> main
 
 # OS files
 .DS_Store
