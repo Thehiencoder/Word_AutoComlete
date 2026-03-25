@@ -15,6 +15,7 @@ class Trie:
         self.root = TrieNode()
 
     def insert(self, word):
+        word=word.lower()
         cur = self.root
         nodes = [cur]
         for c in word:
@@ -25,8 +26,9 @@ class Trie:
 
         cur.is_end = True
         cur.freq += 1
-        for n in nodes: 
-            n.max_subtree_freq = max(n.max_subtree_freq, cur.freq)
+        for n in nodes: #Update max freq for the word
+            if cur.freq > n.max_subtree_freq:
+                n.max_subtree_freq = cur.freq
 
     def _dfs(self, node, cur_word, K, heap):
         if node.is_end:
@@ -39,6 +41,7 @@ class Trie:
             self._dfs(nxt, cur_word + c, K, heap)
 
     def topK(self, prefix, K):
+        prefix=prefix.lower()
         cur = self.root
         for c in prefix:
             if c not in cur.child:
@@ -48,7 +51,7 @@ class Trie:
         heap = []
         self._dfs(cur, prefix, K, heap)
 
-        # trả về danh sách (word, freq) giảm dần theo freq
+        #return list of (word, freq) in descending order of freq
         return sorted(
             [(word, freq) for freq, word in heap],
             key=lambda x: -x[1]
@@ -58,7 +61,7 @@ class Trie:
 def build_trie():
     trie = Trie()
 
-    with open("Trie/training_data_for_Trie.pkl", 'rb') as f:
+    with open("Dataset/training_data_for_Trie.pkl", 'rb') as f:
         tokenized_articles = pickle.load(f)
 
     words = [word for doc in tokenized_articles for word in doc]
@@ -81,5 +84,5 @@ if __name__ == "__main__":
     with open("Trie/Trie.pkl", 'rb') as f:
         trie = pickle.load(f)
 
-    topK = trie.topK("app", 10)
+    topK = trie.topK("app", 5)
     [print(i) for i in topK]
