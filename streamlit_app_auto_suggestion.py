@@ -164,6 +164,7 @@ with st.sidebar:
     
     if st.button("Xóa toàn bộ văn bản", use_container_width=True):
         st.session_state.input_text = ""
+        st.session_state.input_widget_key += 1
         st.rerun()
     
     st.divider()
