@@ -4,6 +4,7 @@ import random
 import spacy
 import pickle
 import pandas as pd
+import matplotlib.pyplot as plt
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
@@ -131,7 +132,7 @@ def summarize_results(res_basic, res_freq, res_lda, k_value):
 # summarize_results(res_basic_trie, res_freq_trie, res_lda_trie, k_value=3)
 
 if __name__ == "__main__":
-    articles = load_test_data()[:50]
+    articles = load_test_data()[:1000]
     tokenized_articles = pre_tokenize_articles(articles)
     
     #Check matrix dùng chung để đảm bảo tính công bằng (fair comparison)
@@ -164,4 +165,4 @@ if __name__ == "__main__":
             "Trie + LDA": f"{res_lda['hit_rates_by_prefix'][pl]:.4f}"
         })
     #print(pd.DataFrame(results).to_string(index=False))
-    summarize_results(res_basic_trie, res_trie_freq, res_lda, k_value=1)
+    summarize_results(res_basic_trie, res_trie_freq, res_lda, k_value=3)
