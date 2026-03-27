@@ -1,5 +1,6 @@
 streamlit
 streamlit-keyup
+streamlit-ace
 spacy==3.7.4
 tomotopy
 numpy==1.26.4
