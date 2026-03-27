@@ -116,7 +116,7 @@ def handle_selection(full_word):
 st.title("Context-Aware Auto-Suggestion")
 st.markdown("Hệ thống gợi ý từ thông minh kết hợp Trie Top-K và Ngữ cảnh LDA.")
 
-user_input = st_ace(
+user_input = st_keyup(
     label="Nhập văn bản của bạn:",
     placeholder="Ví dụ: machine learning is very po...",
     key=f"keyup_field_{st.session_state.input_widget_key}",
