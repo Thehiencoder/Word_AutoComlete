@@ -6,7 +6,8 @@ import time
 import spacy
 import tomotopy as tp
 import numpy as np
-from st_keyup import st_keyup
+#from st_keyup import st_keyup
+from streamlit_ace import st_ace
 import gdown
 
 #Realize custom module in project dir
@@ -111,18 +112,24 @@ def handle_selection(full_word):
     else:
         new_text = full_word + " "
     st.session_state.input_text = new_text
-    st.session_state.input_widget_key += 1
+    #st.session_state.input_widget_key += 1
 
 st.title("Context-Aware Auto-Suggestion")
 st.markdown("Hệ thống gợi ý từ thông minh kết hợp Trie Top-K và Ngữ cảnh LDA.")
 
-user_input = st_keyup(
-    label="Nhập văn bản của bạn:",
+user_input = st_ace(
+    #label="Nhập văn bản của bạn:",
     placeholder="Ví dụ: machine learning is very po...",
-    key=f"keyup_field_{st.session_state.input_widget_key}",
+    #key=f"keyup_field_{st.session_state.input_widget_key}",
+    language="text",
+    key = "ace_editor",
     value=st.session_state.input_text,
-    debounce=50, #Wait for 50ms after stop typing to process
-    label_visibility="collapsed"
+    theme="chrome",
+    height=250,
+    #debounce=50, #Wait for 50ms after stop typing to process
+    auto_update=True,
+    show_gutter=True,
+    wrap=True,
 )
 
 #Update session_state to synchronized with user_input
